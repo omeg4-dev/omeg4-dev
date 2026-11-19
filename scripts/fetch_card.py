@@ -81,6 +81,10 @@ LOGO_SIZE = 9.5      # the omega art is 59 columns, so it gets a smaller font
 LCW = LOGO_SIZE * 0.6
 TYPE_SPEED = 0.07    # s per typed char
 
+# the looping lines on the last prompt
+TYPE_LINES = ["Hi, I'm Omega.", "Using Linux btw.", "The more you Larp, the less you Larp"]
+LOOP_TYPE, LOOP_HOLD, LOOP_ERASE, LOOP_GAP = 0.075, 1.8, 0.03, 0.45
+
 
 def font_face(path: Path, family: str, weight: int, text: str) -> str:
     opts = subset.Options()
@@ -188,13 +192,36 @@ def build(theme: str) -> str:
     t = d + len(greys) * 0.05 + 0.4
     y += max(block_h, info_h) + LH * 0.4
 
-    # 3) idle prompt with blinking cursor
+    # 3) last prompt: types each line, holds it, erases it, loops forever; the cursor follows
     body.append(f'<text x="{PAD_X}" y="{y}" class="p f" style="animation-delay:{t:.2f}s">❯</text>')
-    body.append(f'<rect x="{PAD_X + 2 * CW:.2f}" y="{y - LH * 0.75:.2f}" width="{CW:.2f}" height="{LH * 0.95:.2f}" '
-                f'fill="{c["ink"]}" class="cur" style="animation-delay:{t:.2f}s"/>')
+    x0 = PAD_X + 2 * CW
+    events: list[tuple[float, int]] = []          # (time, cursor column)
+    chars: list[tuple[int, int, str, float, float]] = []
+    s0 = 0.0
+    for li, line in enumerate(TYPE_LINES):
+        n = len(line)
+        for j, ch in enumerate(line):
+            on = s0 + j * LOOP_TYPE
+            off = s0 + n * LOOP_TYPE + LOOP_HOLD + (n - 1 - j) * LOOP_ERASE
+            chars.append((li, j, ch, on, off))
+            events += [(on, j + 1), (off, j)]
+        s0 += n * LOOP_TYPE + LOOP_HOLD + n * LOOP_ERASE + LOOP_GAP
+    cycle = s0
+    pct = lambda v: f"{v / cycle * 100:.3f}%"  # noqa: E731
+    kf: list[str] = []
+    for i, (li, j, ch, on, off) in enumerate(chars):
+        kf.append(f"@keyframes q{i}{{0%{{opacity:0}}{pct(on)}{{opacity:1}}{pct(off)}{{opacity:0}}100%{{opacity:0}}}}")
+        if ch != " ":
+            body.append(f'<text x="{x0 + j * CW:.2f}" y="{y}" class="c ty{" l0" if li == 0 else ""}" '
+                        f'style="animation:q{i} {cycle:.2f}s step-end {t:.2f}s infinite both">{escape(ch)}</text>')
+    steps = "".join(f"{pct(tm)}{{transform:translateX({col * CW:.2f}px)}}" for tm, col in sorted(events))
+    kf.append(f"@keyframes mv{{0%{{transform:translateX(0px)}}{steps}100%{{transform:translateX(0px)}}}}")
+    body.append(f'<g class="mv" style="animation:mv {cycle:.2f}s step-end {t:.2f}s infinite both">'
+                f'<rect x="{x0:.2f}" y="{y - LH * 0.75:.2f}" width="{CW:.2f}" height="{LH * 0.95:.2f}" '
+                f'fill="{c["ink"]}" class="cur" style="animation-delay:{t:.2f}s"/></g>')
     height = round(y + LH * 1.1)
 
-    all_text = "ΩωΩ" + "".join(BANNER + LOGO) + "".join(s for s, _ in info_lines) + "❯figletomegafastfetch─·@" + "".join(k + v for k, v in INFO)
+    all_text = "ΩωΩ" + "".join(TYPE_LINES) + "".join(BANNER + LOGO) + "".join(s for s, _ in info_lines) + "❯figletomegafastfetch─·@" + "".join(k + v for k, v in INFO)
     css = (
         font_face(FONT, "JBM", 400, all_text) + font_face(FONT_BOLD, "JBM", 700, all_text) +
         f"text{{font-family:'JBM',ui-monospace,monospace;font-size:{SIZE}px;fill:{c['soft']};white-space:pre}}"
@@ -205,7 +232,9 @@ def build(theme: str) -> str:
         "@keyframes in{to{opacity:1}}"
         ".cur{opacity:0;animation:blink 1.1s steps(1) infinite}"
         "@keyframes blink{0%{opacity:1}50%{opacity:0}}"
-        "@media (prefers-reduced-motion:reduce){.f,.cur{animation:none;opacity:1}}"
+        "".join(kf) +
+        "@media (prefers-reduced-motion:reduce){.f,.cur{animation:none;opacity:1}.ty{animation:none!important;opacity:0}"
+        f".l0{{opacity:1}}.mv{{animation:none!important;transform:translateX({len(TYPE_LINES[0]) * CW:.2f}px)}}}}"
     )
     frame = (
         f'<rect x="0.5" y="0.5" width="{width - 1}" height="{height - 1}" rx="10" fill="none" stroke="{c["line"]}"/>'
