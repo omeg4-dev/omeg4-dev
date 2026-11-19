@@ -63,7 +63,6 @@ INFO = [
     ("GPU", "GeForce RTX 4060"),
     ("Packages", "yes"),
     ("Langs", "Python · Kotlin · JS · QML"),
-    ("Into", "graffiti · minecraft · gaming"),
     ("Status", "student from Germany"),
 ]
 
