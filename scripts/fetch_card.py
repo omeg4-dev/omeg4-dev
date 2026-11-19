@@ -128,7 +128,7 @@ def build(theme: str) -> str:
     y = PAD_TOP
 
     def typed(cmd: str, y: float, start: float) -> tuple[str, float]:
-        parts = [f'<text x="{PAD_X}" y="{y}" class="p">❯</text>']
+        parts = [f'<text x="{PAD_X}" y="{y}" class="p f" style="animation-delay:{start - 0.25:.2f}s">❯</text>']
         x0 = PAD_X + 2 * CW
         for i, ch in enumerate(cmd):
             d = start + i * TYPE_SPEED
@@ -196,7 +196,7 @@ def build(theme: str) -> str:
     x0 = PAD_X + 2 * CW
     events: list[tuple[float, int]] = []          # (time, cursor column)
     chars: list[tuple[int, int, str, float, float]] = []
-    s0 = 0.0
+    s0 = LOOP_GAP  # nothing may sit at 0%: that frame is also the backwards fill before the delay
     for li, line in enumerate(TYPE_LINES):
         n = len(line)
         for j, ch in enumerate(line):
@@ -204,7 +204,7 @@ def build(theme: str) -> str:
             off = s0 + n * LOOP_TYPE + LOOP_HOLD + (n - 1 - j) * LOOP_ERASE
             chars.append((li, j, ch, on, off))
             events += [(on, j + 1), (off, j)]
-        s0 += n * LOOP_TYPE + LOOP_HOLD + n * LOOP_ERASE + LOOP_GAP
+        s0 += n * LOOP_TYPE + LOOP_HOLD + n * LOOP_ERASE + (LOOP_GAP if li < len(TYPE_LINES) - 1 else 0)
     cycle = s0
     pct = lambda v: f"{v / cycle * 100:.3f}%"  # noqa: E731
     kf: list[str] = []
